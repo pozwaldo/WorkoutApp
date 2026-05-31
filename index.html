@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Workout">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1117">
 <title>Workout Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -666,7 +671,6 @@
 <div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
 <div class="drawer" id="drawer">
   <div class="drawer-header">Workout Menu</div>
-  <button class="drawer-btn" onclick="addActivity()">＋ New Activity</button>
   <button class="drawer-btn" onclick="pauseWorkout()" id="btn-pause">⏸ Pause Workout</button>
   <button class="drawer-btn danger" onclick="openEndModal()">⏹ End Workout</button>
 </div>
@@ -992,8 +996,17 @@ function buildCardioForm(fields) {
   container.innerHTML = fields.map(f => {
     if (f === 'time') return `
       <div class="input-group">
-        <label>Duration (minutes)</label>
-        <input type="number" id="cardio-time" placeholder="0" inputmode="decimal" step="0.1">
+        <label>Duration</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <input type="number" id="cardio-time-min" placeholder="0" inputmode="numeric" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font-head);font-size:22px;font-weight:700;padding:12px 14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+            <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px;letter-spacing:0.06em;text-transform:uppercase">min</div>
+          </div>
+          <div>
+            <input type="number" id="cardio-time-sec" placeholder="0" inputmode="numeric" min="0" max="59" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font-head);font-size:22px;font-weight:700;padding:12px 14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+            <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px;letter-spacing:0.06em;text-transform:uppercase">sec</div>
+          </div>
+        </div>
       </div>`;
     if (f === 'distance') return `
       <div class="input-group">
@@ -1010,14 +1023,18 @@ function buildCardioForm(fields) {
 }
 
 async function logCardio() {
-  const timeEl = document.getElementById('cardio-time');
+  const timeMinEl = document.getElementById('cardio-time-min');
+  const timeSecEl = document.getElementById('cardio-time-sec');
   const distEl = document.getElementById('cardio-distance');
   const stairsEl = document.getElementById('cardio-stairs');
+
+  const mins = timeMinEl ? parseInt(timeMinEl.value || 0) : 0;
+  const secs = timeSecEl ? parseInt(timeSecEl.value || 0) : 0;
 
   const body = {
     workout_id: state.workoutId,
     activity: state.currentActivity.name,
-    time_seconds: timeEl ? Math.round(parseFloat(timeEl.value || 0) * 60) : '',
+    time_seconds: (timeMinEl || timeSecEl) ? (mins * 60 + secs) : '',
     distance_miles: distEl ? parseFloat(distEl.value || 0) : '',
     stairs: stairsEl ? parseInt(stairsEl.value || 0) : '',
   };
