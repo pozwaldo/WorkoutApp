@@ -741,11 +741,23 @@ let state = {
 // API HELPERS
 // ════════════════════════════════════════════════════════
 async function api(action, body = {}) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, ...body }),
+  const params = new URLSearchParams({ action, ...flattenParams(body) });
+  const res = await fetch(`${API_URL}?${params.toString()}`, {
+    method: 'GET',
+    redirect: 'follow',
   });
-  return res.json();
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch(e) { console.error('Bad response:', text); throw e; }
+}
+
+// Apps Script GET params must be flat strings
+function flattenParams(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = (v === null || v === undefined) ? '' : String(v);
+  }
+  return out;
 }
 
 // ════════════════════════════════════════════════════════
