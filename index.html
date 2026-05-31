@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Workout Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset & Base ─────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f1117;
+    --surface:   #1a1d27;
+    --surface2:  #22263a;
+    --border:    #2e3350;
+    --accent:    #4f8ef7;
+    --accent2:   #7c3aed;
+    --green:     #22c55e;
+    --red:       #ef4444;
+    --amber:     #f59e0b;
+    --text:      #e8eaf6;
+    --muted:     #6b7280;
+    --radius:    14px;
+    --font-head: 'Barlow Condensed', sans-serif;
+    --font-body: 'Barlow', sans-serif;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ── Screens ──────────────────────────────────────────── */
+  .screen {
+    display: none;
+    flex-direction: column;
+    min-height: 100dvh;
+    padding: 0 0 32px;
+  }
+  .screen.active { display: flex; }
+
+  /* ── Top Bar ──────────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 50;
+  }
+  .topbar-title {
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .topbar-timer {
+    font-family: var(--font-head);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+  }
+
+  /* ── Hamburger ────────────────────────────────────────── */
+  .hamburger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .hamburger span {
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: var(--text);
+    border-radius: 2px;
+    transition: 0.2s;
+  }
+
+  /* ── Drawer Menu ──────────────────────────────────────── */
+  .drawer-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 100;
+  }
+  .drawer-overlay.open { display: block; }
+  .drawer {
+    position: fixed;
+    top: 0; right: -280px;
+    width: 260px;
+    height: 100dvh;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    z-index: 101;
+    transition: right 0.28s cubic-bezier(0.4,0,0.2,1);
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .drawer.open { right: 0; }
+  .drawer-header {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .drawer-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 500;
+    padding: 14px 16px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .drawer-btn:hover { background: var(--surface2); border-color: var(--accent); }
+  .drawer-btn.danger { color: var(--red); }
+  .drawer-btn.danger:hover { border-color: var(--red); }
+
+  /* ── Home Screen ──────────────────────────────────────── */
+  .home-hero {
+    padding: 36px 20px 24px;
+    text-align: center;
+  }
+  .home-logo {
+    font-family: var(--font-head);
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .home-logo span { color: var(--accent); }
+  .home-sub {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .btn-start {
+    display: block;
+    margin: 0 20px 32px;
+    padding: 18px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+    box-shadow: 0 4px 24px rgba(79,142,247,0.35);
+  }
+  .btn-start:active { transform: scale(0.97); }
+
+  .section-label {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0 20px 10px;
+  }
+
+  /* ── Workout Cards ────────────────────────────────────── */
+  .workout-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+  .workout-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .workout-date {
+    font-family: var(--font-head);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .workout-meta { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .workout-cal {
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--amber);
+  }
+  .workout-cal-label { font-size: 11px; color: var(--muted); text-align: right; }
+
+  .empty-state {
+    text-align: center;
+    color: var(--muted);
+    padding: 40px 20px;
+    font-size: 14px;
+  }
+
+  /* ── Activity List Screen ─────────────────────────────── */
+  .activity-grid { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .activity-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .activity-item:active { background: var(--surface2); }
+  .activity-item.done { border-color: var(--green); }
+  .activity-name {
+    font-family: var(--font-head);
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .activity-type {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .activity-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+    margin-left: 10px;
+    box-shadow: 0 0 6px var(--green);
+  }
+  .activity-dot.hidden { visibility: hidden; }
+
+  /* ── Workout Screen ───────────────────────────────────── */
+  .workout-activity-header {
+    padding: 20px 20px 0;
+  }
+  .workout-activity-name {
+    font-family: var(--font-head);
+    font-size: 32px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+  .workout-activity-type {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 16px 16px 4px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat-value.green { color: var(--green); }
+
+  /* Cardio inputs */
+  .cardio-form { padding: 16px 16px 0; display: flex; flex-direction: column; gap: 12px; }
+  .input-group label {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .input-group input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 700;
+    padding: 12px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .input-group input:focus { border-color: var(--accent); }
+
+  .btn-log-cardio {
+    margin: 16px 16px 0;
+    padding: 16px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--font-head);
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .btn-log-cardio:active { transform: scale(0.97); }
+
+  /* Sets table */
+  .sets-header {
+    display: grid;
+    grid-template-columns: 36px 1fr 1fr 40px;
+    gap: 8px;
+    padding: 16px 16px 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+  .sets-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
+  .set-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 1fr 40px;
+    gap: 8px;
+    align-items: center;
+  }
+  .set-num {
+    background: var(--surface2);
+    border-radius: 8px;
+    text-align: center;
+    padding: 10px 0;
+    font-family: var(--font-head);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .set-input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--font-head);
+    font-size: 20px;
+    font-weight: 700;
+    padding: 10px 12px;
+    text-align: center;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.15s;
+  }
+  .set-input:focus { border-color: var(--accent); }
+  .btn-delete-set {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 16px;
+    padding: 10px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .btn-delete-set:hover { color: var(--red); border-color: var(--red); }
+
+  .btn-add-set {
+    margin: 12px 16px 0;
+    padding: 14px;
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    color: var(--accent);
+    font-family: var(--font-head);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    width: calc(100% - 32px);
+  }
+  .btn-add-set:hover { background: var(--surface2); border-color: var(--accent); }
+
+  .btn-log-sets {
+    margin: 12px 16px 0;
+    padding: 16px;
+    background: var(--green);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--font-head);
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    box-shadow: 0 4px 18px rgba(34,197,94,0.25);
+    width: calc(100% - 32px);
+  }
+  .btn-log-sets:active { transform: scale(0.97); }
+
+  .btn-back {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-family: var(--font-body);
+    font-size: 15px;
+    cursor: pointer;
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* ── Modal ────────────────────────────────────────────── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 28px 24px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .modal-title {
+    font-family: var(--font-head);
+    font-size: 24px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+  .modal-sub { font-size: 14px; color: var(--muted); margin-bottom: 22px; }
+  .modal input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--font-head);
+    font-size: 32px;
+    font-weight: 800;
+    padding: 14px 16px;
+    text-align: center;
+    outline: none;
+    margin-bottom: 16px;
+    transition: border-color 0.15s;
+  }
+  .modal input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 10px; }
+  .btn-modal-cancel {
+    flex: 1;
+    padding: 14px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--muted);
+    font-family: var(--font-head);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .btn-modal-confirm {
+    flex: 2;
+    padding: 14px;
+    background: var(--red);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-family: var(--font-head);
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* ── Toast ────────────────────────────────────────────── */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 40px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    z-index: 300;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+
+  /* ── Loading ──────────────────────────────────────────── */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 40px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .logged-badge {
+    display: inline-block;
+    background: rgba(34,197,94,0.15);
+    border: 1px solid var(--green);
+    color: var(--green);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 1: HOME
+═══════════════════════════════════════════════════════ -->
+<div id="screen-home" class="screen active">
+  <div class="topbar">
+    <div class="topbar-title">Workout<span style="color:var(--accent)">.</span></div>
+  </div>
+  <div class="home-hero">
+    <div class="home-logo">Let's<span> Go</span></div>
+    <div class="home-sub">Ready when you are</div>
+  </div>
+  <button class="btn-start" onclick="startWorkout()">▶ Start Workout</button>
+  <div class="section-label">Recent Workouts</div>
+  <div class="workout-list" id="recent-workouts">
+    <div class="loading"><div class="spinner"></div> Loading...</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 2: ACTIVITY PICKER
+═══════════════════════════════════════════════════════ -->
+<div id="screen-picker" class="screen">
+  <div class="topbar">
+    <div class="topbar-title">Activities</div>
+    <div class="topbar-timer" id="picker-timer">0:00</div>
+    <button class="hamburger" onclick="openDrawer()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="activity-grid" id="activity-grid"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 3: LOG ACTIVITY
+═══════════════════════════════════════════════════════ -->
+<div id="screen-log" class="screen">
+  <div class="topbar">
+    <button class="btn-back" onclick="showPicker()">← Back</button>
+    <div class="topbar-timer" id="log-timer">0:00</div>
+    <button class="hamburger" onclick="openDrawer()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="workout-activity-header">
+    <div class="workout-activity-name" id="log-activity-name"></div>
+    <div class="workout-activity-type" id="log-activity-type"></div>
+  </div>
+
+  <div class="stats-bar" id="stats-bar"></div>
+
+  <!-- Cardio form -->
+  <div id="cardio-form" style="display:none">
+    <div class="cardio-form" id="cardio-fields"></div>
+    <button class="btn-log-cardio" onclick="logCardio()">✓ Log Activity</button>
+  </div>
+
+  <!-- Strength form -->
+  <div id="strength-form" style="display:none">
+    <div class="sets-header">
+      <div>Set</div><div style="text-align:center">Reps</div><div style="text-align:center">Weight (lbs)</div><div></div>
+    </div>
+    <div class="sets-list" id="sets-list"></div>
+    <button class="btn-add-set" onclick="addSet()">+ Add Set</button>
+    <button class="btn-log-sets" onclick="logSets()">✓ Log All Sets</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     DRAWER MENU
+═══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">Workout Menu</div>
+  <button class="drawer-btn" onclick="addActivity()">＋ New Activity</button>
+  <button class="drawer-btn" onclick="pauseWorkout()" id="btn-pause">⏸ Pause Workout</button>
+  <button class="drawer-btn danger" onclick="openEndModal()">⏹ End Workout</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     END WORKOUT MODAL
+═══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="end-modal">
+  <div class="modal">
+    <div class="modal-title">End Workout</div>
+    <div class="modal-sub">Enter your total calories burned</div>
+    <input type="number" id="calories-input" placeholder="0" inputmode="numeric">
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeEndModal()">Cancel</button>
+      <button class="btn-modal-confirm" onclick="endWorkout()">End Workout</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     TOAST
+═══════════════════════════════════════════════════════ -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// CONFIG — replace with your deployed Apps Script URL
+// ════════════════════════════════════════════════════════
+const API_URL = 'https://script.google.com/macros/s/AKfycbyHpnHSfAN88yOmFAoGy1GEF_zvNGRVdPIYstZmSzeIKAs2ukUomTYKQdd6ADeSoqi3lw/exec';
+
+// ════════════════════════════════════════════════════════
+// ACTIVITIES DEFINITION
+// ════════════════════════════════════════════════════════
+const ACTIVITIES = [
+  // Cardio
+  { name: 'Treadmill',        type: 'cardio',   fields: ['time','distance'] },
+  { name: 'Stairclimber',     type: 'cardio',   fields: ['time','stairs'] },
+  { name: 'Elliptical',       type: 'cardio',   fields: ['time'] },
+  { name: 'Stationary Bike',  type: 'cardio',   fields: ['time'] },
+  // Strength
+  { name: 'Chest Press',      type: 'strength'  },
+  { name: 'Shoulder Press',   type: 'strength'  },
+  { name: 'Lat Pulldown',     type: 'strength'  },
+  { name: 'Seated Cable Row', type: 'strength'  },
+  { name: 'Bicep Curl',       type: 'strength'  },
+  { name: 'Tricep Extension', type: 'strength'  },
+  { name: 'Assisted Dip',     type: 'strength'  },
+  { name: 'Assisted Pull-Up', type: 'strength'  },
+  { name: 'Seated Leg Press', type: 'strength'  },
+  { name: 'Leg Extension',    type: 'strength'  },
+  { name: 'Abdominal Crunch', type: 'strength'  },
+  { name: 'Torso Rotation',   type: 'strength'  },
+];
+
+// ════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════
+let state = {
+  workoutId: null,
+  startTime: null,
+  timerInterval: null,
+  paused: false,
+  pausedAt: null,
+  totalPaused: 0,
+  currentActivity: null,
+  previousActivities: [],   // names from last workout
+  loggedThisWorkout: new Set(),
+  sets: [],                 // current strength sets in progress
+};
+
+// ════════════════════════════════════════════════════════
+// API HELPERS
+// ════════════════════════════════════════════════════════
+async function api(action, body = {}) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...body }),
+  });
+  return res.json();
+}
+
+// ════════════════════════════════════════════════════════
+// SCREENS
+// ════════════════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// ════════════════════════════════════════════════════════
+// HOME SCREEN
+// ════════════════════════════════════════════════════════
+async function loadHome() {
+  showScreen('screen-home');
+  const el = document.getElementById('recent-workouts');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+  try {
+    const workouts = await api('getRecentWorkouts');
+    if (!workouts.length) {
+      el.innerHTML = '<div class="empty-state">No workouts yet.<br>Time to get moving!</div>';
+      return;
+    }
+    el.innerHTML = workouts.map(w => {
+      const date = new Date(w.date);
+      const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      const dur = formatDuration(w.duration_seconds);
+      return `
+        <div class="workout-card">
+          <div>
+            <div class="workout-date">${dateStr}</div>
+            <div class="workout-meta">${dur}</div>
+          </div>
+          <div>
+            <div class="workout-cal">${w.calories || '—'}</div>
+            <div class="workout-cal-label">cal</div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state">Couldn\'t load workouts.<br>Check your connection.</div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// START WORKOUT
+// ════════════════════════════════════════════════════════
+async function startWorkout() {
+  try {
+    const res = await api('startWorkout');
+    state.workoutId = res.workoutId;
+    state.startTime = Date.now();
+    state.totalPaused = 0;
+    state.paused = false;
+    state.loggedThisWorkout = new Set();
+
+    // Fetch previous workout activities for dot indicators
+    const prev = await api('getPreviousActivities');
+    state.previousActivities = prev || [];
+
+    startTimer();
+    buildActivityGrid();
+    showScreen('screen-picker');
+  } catch(e) {
+    showToast('Could not start workout. Check connection.', 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// TIMER
+// ════════════════════════════════════════════════════════
+function startTimer() {
+  clearInterval(state.timerInterval);
+  state.timerInterval = setInterval(updateTimerDisplay, 1000);
+}
+
+function updateTimerDisplay() {
+  const elapsed = getElapsedSeconds();
+  const str = formatDuration(elapsed);
+  document.getElementById('picker-timer').textContent = str;
+  document.getElementById('log-timer').textContent = str;
+}
+
+function getElapsedSeconds() {
+  if (!state.startTime) return 0;
+  const now = state.paused ? state.pausedAt : Date.now();
+  return Math.floor((now - state.startTime - state.totalPaused) / 1000);
+}
+
+function formatDuration(secs) {
+  if (!secs) return '0:00';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+// ════════════════════════════════════════════════════════
+// ACTIVITY PICKER
+// ════════════════════════════════════════════════════════
+function buildActivityGrid() {
+  const grid = document.getElementById('activity-grid');
+  const cardio = ACTIVITIES.filter(a => a.type === 'cardio');
+  const strength = ACTIVITIES.filter(a => a.type === 'strength');
+
+  let html = '<div class="section-label" style="padding-top:12px">Cardio</div>';
+  html += cardio.map(a => activityItemHTML(a)).join('');
+  html += '<div class="section-label" style="padding-top:8px">Strength</div>';
+  html += strength.map(a => activityItemHTML(a)).join('');
+  grid.innerHTML = html;
+}
+
+function activityItemHTML(a) {
+  const prevDot = state.previousActivities.includes(a.name);
+  const logged = state.loggedThisWorkout.has(a.name);
+  const typeLabel = a.type === 'cardio'
+    ? (a.fields || []).map(f => f === 'time' ? 'Time' : f === 'distance' ? 'Distance (mi)' : 'Stairs').join(' · ')
+    : 'Sets · Reps · Weight';
+
+  return `
+    <div class="activity-item ${logged ? 'done' : ''}" onclick="selectActivity('${a.name}')">
+      <div>
+        <div class="activity-name">${a.name}</div>
+        <div class="activity-type">${typeLabel}</div>
+        ${logged ? '<span class="logged-badge">✓ Logged</span>' : ''}
+      </div>
+      <div class="activity-dot ${prevDot ? '' : 'hidden'}"></div>
+    </div>`;
+}
+
+function showPicker() {
+  buildActivityGrid();
+  showScreen('screen-picker');
+}
+
+// ════════════════════════════════════════════════════════
+// SELECT ACTIVITY
+// ════════════════════════════════════════════════════════
+async function selectActivity(name) {
+  const activity = ACTIVITIES.find(a => a.name === name);
+  state.currentActivity = activity;
+  state.sets = [{ reps: '', weight: '' }];
+
+  document.getElementById('log-activity-name').textContent = name;
+  document.getElementById('log-activity-type').textContent =
+    activity.type === 'cardio' ? 'Cardio' : 'Strength Training';
+
+  // Load stats
+  loadActivityStats(name, activity.type);
+
+  // Show the right form
+  document.getElementById('cardio-form').style.display = activity.type === 'cardio' ? 'block' : 'none';
+  document.getElementById('strength-form').style.display = activity.type === 'strength' ? 'block' : 'none';
+
+  if (activity.type === 'cardio') {
+    buildCardioForm(activity.fields || ['time']);
+  } else {
+    renderSets();
+  }
+
+  showScreen('screen-log');
+}
+
+// ════════════════════════════════════════════════════════
+// STATS
+// ════════════════════════════════════════════════════════
+async function loadActivityStats(name, type) {
+  const bar = document.getElementById('stats-bar');
+  bar.innerHTML = '<div class="loading" style="grid-column:1/-1;padding:20px"><div class="spinner"></div></div>';
+  try {
+    const data = await api('getActivityStats', { activity: name });
+
+    if (!data.lastWorkout && !data.average) {
+      bar.innerHTML = `
+        <div class="stat-card"><div class="stat-label">Last Time</div><div class="stat-value" style="color:var(--muted)">No data</div></div>
+        <div class="stat-card"><div class="stat-label">All-Time Avg</div><div class="stat-value" style="color:var(--muted)">No data</div></div>`;
+      return;
+    }
+
+    if (type === 'strength') {
+      const lastSets = data.lastWorkout ? data.lastWorkout.length : 0;
+      const lastReps = data.lastWorkout ? data.lastWorkout.map(r => r.reps).join(', ') : '—';
+      const lastWt = data.lastWorkout ? data.lastWorkout[0]?.weight || '—' : '—';
+      const avgReps = data.average?.reps ? data.average.reps.toFixed(1) : '—';
+      const avgWt = data.average?.weight ? data.average.weight.toFixed(1) : '—';
+      bar.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-label">Last Time</div>
+          <div class="stat-value">${lastSets} sets</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${lastReps} reps @ ${lastWt} lbs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">All-Time Avg</div>
+          <div class="stat-value green">${avgReps} reps</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${avgWt} lbs avg</div>
+        </div>`;
+    } else {
+      const lastTime = data.lastWorkout?.[0]?.time_seconds ? formatDuration(data.lastWorkout[0].time_seconds) : '—';
+      const lastDist = data.lastWorkout?.[0]?.distance_miles ? data.lastWorkout[0].distance_miles.toFixed(2) + ' mi' : null;
+      const lastStairs = data.lastWorkout?.[0]?.stairs ? data.lastWorkout[0].stairs + ' stairs' : null;
+      const lastDetail = lastDist || lastStairs || '';
+
+      const avgTime = data.average?.time_seconds ? formatDuration(Math.round(data.average.time_seconds)) : '—';
+      const avgDist = data.average?.distance_miles ? data.average.distance_miles.toFixed(2) + ' mi' : null;
+      const avgStairs = data.average?.stairs ? Math.round(data.average.stairs) + ' stairs' : null;
+      const avgDetail = avgDist || avgStairs || '';
+
+      bar.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-label">Last Time</div>
+          <div class="stat-value">${lastTime}</div>
+          ${lastDetail ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${lastDetail}</div>` : ''}
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">All-Time Avg</div>
+          <div class="stat-value green">${avgTime}</div>
+          ${avgDetail ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${avgDetail}</div>` : ''}
+        </div>`;
+    }
+  } catch(e) {
+    bar.innerHTML = '<div class="stat-card" style="grid-column:1/-1"><div class="stat-label">Stats unavailable</div></div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// CARDIO FORM
+// ════════════════════════════════════════════════════════
+function buildCardioForm(fields) {
+  const container = document.getElementById('cardio-fields');
+  container.innerHTML = fields.map(f => {
+    if (f === 'time') return `
+      <div class="input-group">
+        <label>Duration (minutes)</label>
+        <input type="number" id="cardio-time" placeholder="0" inputmode="decimal" step="0.1">
+      </div>`;
+    if (f === 'distance') return `
+      <div class="input-group">
+        <label>Distance (miles)</label>
+        <input type="number" id="cardio-distance" placeholder="0.0" inputmode="decimal" step="0.01">
+      </div>`;
+    if (f === 'stairs') return `
+      <div class="input-group">
+        <label>Stairs Climbed</label>
+        <input type="number" id="cardio-stairs" placeholder="0" inputmode="numeric">
+      </div>`;
+    return '';
+  }).join('');
+}
+
+async function logCardio() {
+  const timeEl = document.getElementById('cardio-time');
+  const distEl = document.getElementById('cardio-distance');
+  const stairsEl = document.getElementById('cardio-stairs');
+
+  const body = {
+    workout_id: state.workoutId,
+    activity: state.currentActivity.name,
+    time_seconds: timeEl ? Math.round(parseFloat(timeEl.value || 0) * 60) : '',
+    distance_miles: distEl ? parseFloat(distEl.value || 0) : '',
+    stairs: stairsEl ? parseInt(stairsEl.value || 0) : '',
+  };
+
+  try {
+    await api('logSet', body);
+    state.loggedThisWorkout.add(state.currentActivity.name);
+    showToast('✓ Logged!', 'success');
+    showPicker();
+  } catch(e) {
+    showToast('Failed to log. Try again.', 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// STRENGTH SETS
+// ════════════════════════════════════════════════════════
+function renderSets() {
+  const list = document.getElementById('sets-list');
+  list.innerHTML = state.sets.map((set, i) => `
+    <div class="set-row">
+      <div class="set-num">${i + 1}</div>
+      <input class="set-input" type="number" inputmode="numeric" placeholder="—"
+        value="${set.reps}" onchange="updateSet(${i},'reps',this.value)">
+      <input class="set-input" type="number" inputmode="decimal" placeholder="—"
+        value="${set.weight}" onchange="updateSet(${i},'weight',this.value)">
+      <button class="btn-delete-set" onclick="deleteSet(${i})">✕</button>
+    </div>`).join('');
+}
+
+function updateSet(i, field, val) {
+  state.sets[i][field] = val;
+}
+
+function addSet() {
+  // Copy weight from last set as a convenience
+  const lastWeight = state.sets.length ? state.sets[state.sets.length - 1].weight : '';
+  state.sets.push({ reps: '', weight: lastWeight });
+  renderSets();
+  // Focus the new reps input
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#sets-list .set-row:last-child .set-input');
+    if (inputs[0]) inputs[0].focus();
+  }, 50);
+}
+
+function deleteSet(i) {
+  if (state.sets.length <= 1) { showToast('Need at least one set', 'error'); return; }
+  state.sets.splice(i, 1);
+  renderSets();
+}
+
+async function logSets() {
+  const validSets = state.sets.filter(s => s.reps !== '');
+  if (!validSets.length) { showToast('Enter at least one set', 'error'); return; }
+
+  try {
+    for (let i = 0; i < validSets.length; i++) {
+      await api('logSet', {
+        workout_id: state.workoutId,
+        activity: state.currentActivity.name,
+        sets: i + 1,
+        reps: validSets[i].reps,
+        weight: validSets[i].weight || 0,
+      });
+    }
+    state.loggedThisWorkout.add(state.currentActivity.name);
+    showToast(`✓ ${validSets.length} set${validSets.length > 1 ? 's' : ''} logged!`, 'success');
+    showPicker();
+  } catch(e) {
+    showToast('Failed to log. Try again.', 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// DRAWER
+// ════════════════════════════════════════════════════════
+function openDrawer() {
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawer-overlay').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+}
+
+function addActivity() {
+  closeDrawer();
+  // Show a simple prompt — could be extended to a full modal
+  const name = prompt('Activity name:');
+  if (!name) return;
+  const type = prompt('Type (cardio or strength):');
+  if (!type || !['cardio','strength'].includes(type.toLowerCase())) {
+    showToast('Must be cardio or strength', 'error'); return;
+  }
+  ACTIVITIES.push({ name, type: type.toLowerCase(), fields: type === 'cardio' ? ['time'] : undefined });
+  buildActivityGrid();
+  showToast(`${name} added`, 'success');
+}
+
+function pauseWorkout() {
+  closeDrawer();
+  if (!state.paused) {
+    state.paused = true;
+    state.pausedAt = Date.now();
+    clearInterval(state.timerInterval);
+    document.getElementById('btn-pause').textContent = '▶ Resume Workout';
+    showToast('Workout paused');
+  } else {
+    state.totalPaused += Date.now() - state.pausedAt;
+    state.paused = false;
+    state.pausedAt = null;
+    startTimer();
+    document.getElementById('btn-pause').textContent = '⏸ Pause Workout';
+    showToast('Workout resumed');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// END WORKOUT
+// ════════════════════════════════════════════════════════
+function openEndModal() {
+  closeDrawer();
+  document.getElementById('calories-input').value = '';
+  document.getElementById('end-modal').classList.add('open');
+}
+function closeEndModal() {
+  document.getElementById('end-modal').classList.remove('open');
+}
+
+async function endWorkout() {
+  const calories = document.getElementById('calories-input').value || 0;
+  const duration = getElapsedSeconds();
+
+  try {
+    await api('endWorkout', {
+      workout_id: state.workoutId,
+      duration_seconds: duration,
+      calories,
+    });
+    clearInterval(state.timerInterval);
+    closeEndModal();
+    state.workoutId = null;
+    state.startTime = null;
+    showToast(`Workout saved! ${duration > 0 ? formatDuration(duration) : ''}`, 'success');
+    setTimeout(() => loadHome(), 600);
+  } catch(e) {
+    showToast('Failed to save. Try again.', 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════════════════
+let toastTimeout;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════
+loadHome();
+</script>
+</body>
+</html>
