@@ -756,15 +756,9 @@
     </button>
   </div>
 
-  <!-- Activity name + Log button side by side for strength -->
   <div class="workout-activity-header">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <div style="flex:1;min-width:0">
-        <div class="workout-activity-name" id="log-activity-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-        <div class="workout-activity-type" id="log-activity-type"></div>
-      </div>
-      <button class="btn-log-sets" id="btn-log-sets-top" onclick="logSets()" style="display:none;flex-shrink:0;width:48%;margin:0;padding:12px 8px;font-size:15px">✓ Log Sets</button>
-    </div>
+    <div class="workout-activity-name" id="log-activity-name"></div>
+    <div class="workout-activity-type" id="log-activity-type"></div>
   </div>
 
   <!-- Last session stats for cardio only -->
@@ -783,9 +777,10 @@
     </div>
     <div class="sets-list" id="sets-list"></div>
     <button class="btn-add-set" onclick="addSet()">+ Add Set</button>
+    <button class="btn-log-sets" id="btn-log-sets-top" onclick="logSets()">✓ Log All Sets</button>
 
     <!-- Last session reference -->
-    <div id="last-session-block" style="margin:16px 16px 0">
+    <div id="last-session-block" style="margin:16px 16px 0;display:none">
       <div class="section-label" style="padding:0 0 8px">Last Session</div>
       <div id="last-session-sets"></div>
     </div>
@@ -1048,6 +1043,8 @@ async function selectActivity(name) {
   // Reset last-session block while loading
   const lb = document.getElementById('last-session-block');
   if (lb) lb.style.display = 'none';
+  const lbSets = document.getElementById('last-session-sets');
+  if (lbSets) lbSets.innerHTML = '';
 
   if (activity.type === 'cardio') {
     buildCardioForm(activity.fields || ['time']);
@@ -1083,13 +1080,14 @@ async function loadActivityStats(name, type) {
         return;
       }
       if (lastSetsEl) {
-        lastSetsEl.innerHTML = data.lastWorkout.map((r, i) => `
-          <div style="display:grid;grid-template-columns:36px 1fr 1fr;gap:8px;margin-bottom:8px;align-items:center">
-            <div style="background:var(--surface2);border-radius:8px;text-align:center;padding:10px 0;font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--muted)">${i+1}</div>
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--muted)">${r.reps}</div>
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--muted)">${parseFloat(r.weight) > 0 ? r.weight : '—'}</div>
-          </div>`).join('');
+        lastSetsEl.innerHTML = renderWorkoutDetail(data.lastWorkout);
       }
+      const lastDate = data.lastDate
+        ? new Date(data.lastDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : '';
+      const labelEl = lastBlock ? lastBlock.querySelector('.section-label') : null;
+      if (labelEl) labelEl.textContent = 'Last Session' + (lastDate ? '  —  ' + lastDate : '');
+      if (lastBlock) lastBlock.style.display = 'block';
     } catch(e) {
       if (lastBlock) lastBlock.style.display = 'none';
     }
@@ -1258,7 +1256,7 @@ async function logSets() {
     showToast('Failed to log. Try again.', 'error');
   } finally {
     state.submitting = false;
-    if (btn) { btn.disabled = false; btn.textContent = '✓ Log Sets'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Log All Sets'; }
   }
 }
 
