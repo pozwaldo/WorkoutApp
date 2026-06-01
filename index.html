@@ -594,7 +594,46 @@
     padding: 2px 8px;
     margin-top: 4px;
   }
+  .workout-card { cursor: pointer; }
+  .workout-card:active { background: var(--surface2); }
+  .workout-detail {
+    display: none;
+    border-top: 1px solid var(--border);
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+  .workout-detail.open { display: block; }
+  .detail-activity {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .detail-activity:last-child { border-bottom: none; }
+  .detail-activity-name {
+    font-family: var(--font-head);
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+    color: var(--accent);
+  }
+  .detail-row {
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    gap: 12px;
+  }
+  .detail-row span { color: var(--text); font-weight: 500; }
+  .expand-chevron {
+    font-size: 12px;
+    color: var(--muted);
+    transition: transform 0.2s;
+    margin-left: 6px;
+  }
+  .expand-chevron.open { transform: rotate(180deg); }
 </style>
+<script src="config.js"></script>
 </head>
 <body>
 
@@ -610,8 +649,25 @@
     <div class="home-sub">Ready when you are</div>
   </div>
   <button class="btn-start" onclick="startWorkout()">▶ Start Workout</button>
-  <div class="section-label">Recent Workouts</div>
+  <div class="section-label" style="display:flex;justify-content:space-between;align-items:center;padding-right:20px">
+    <span>Recent Workouts</span>
+    <button onclick="showAllWorkouts()" style="background:none;border:none;color:var(--accent);font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;letter-spacing:0.04em;">See All →</button>
+  </div>
   <div class="workout-list" id="recent-workouts">
+    <div class="loading"><div class="spinner"></div> Loading...</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREEN 4: ALL WORKOUTS
+═══════════════════════════════════════════════════════ -->
+<div id="screen-all-workouts" class="screen">
+  <div class="topbar">
+    <button class="btn-back" onclick="loadHome()">← Back</button>
+    <div class="topbar-title">All Workouts</div>
+    <div style="width:60px"></div>
+  </div>
+  <div class="workout-list" id="all-workouts-list" style="padding-top:12px">
     <div class="loading"><div class="spinner"></div> Loading...</div>
   </div>
 </div>
@@ -683,9 +739,12 @@
     <div class="modal-title">End Workout</div>
     <div class="modal-sub">Enter your total calories burned</div>
     <input type="number" id="calories-input" placeholder="0" inputmode="numeric">
-    <div class="modal-actions">
-      <button class="btn-modal-cancel" onclick="closeEndModal()">Cancel</button>
-      <button class="btn-modal-confirm" onclick="endWorkout()">End Workout</button>
+    <div class="modal-actions" style="flex-direction:column;gap:10px">
+      <button class="btn-modal-confirm" onclick="endWorkout('save')" style="background:var(--green);box-shadow:0 4px 18px rgba(34,197,94,0.25)">✓ Save Workout</button>
+      <div style="display:flex;gap:10px">
+        <button class="btn-modal-cancel" onclick="closeEndModal()">Cancel</button>
+        <button class="btn-modal-confirm" onclick="endWorkout('discard')" style="background:none;border:1px solid var(--red);color:var(--red);box-shadow:none">Discard</button>
+      </div>
     </div>
   </div>
 </div>
@@ -696,10 +755,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// ════════════════════════════════════════════════════════
-// CONFIG — replace with your deployed Apps Script URL
-// ════════════════════════════════════════════════════════
-const API_URL = 'https://script.google.com/macros/s/AKfycbyHpnHSfAN88yOmFAoGy1GEF_zvNGRVdPIYstZmSzeIKAs2ukUomTYKQdd6ADeSoqi3lw/exec';
+// API_URL is loaded from config.js (not committed to git)
 
 // ════════════════════════════════════════════════════════
 // ACTIVITIES DEFINITION
@@ -1165,9 +1221,23 @@ function closeEndModal() {
   document.getElementById('end-modal').classList.remove('open');
 }
 
-async function endWorkout() {
+async function endWorkout(action) {
   const calories = document.getElementById('calories-input').value || 0;
   const duration = getElapsedSeconds();
+
+  if (action === 'discard') {
+    // Delete this workout's data from the sheet
+    try {
+      await api('discardWorkout', { workout_id: state.workoutId });
+    } catch(e) { /* best effort */ }
+    clearInterval(state.timerInterval);
+    closeEndModal();
+    state.workoutId = null;
+    state.startTime = null;
+    showToast('Workout discarded');
+    setTimeout(() => loadHome(), 600);
+    return;
+  }
 
   try {
     await api('endWorkout', {
@@ -1196,6 +1266,102 @@ function showToast(msg, type = '') {
   el.className = 'toast show' + (type ? ' ' + type : '');
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ════════════════════════════════════════════════════════
+// ALL WORKOUTS SCREEN
+// ════════════════════════════════════════════════════════
+async function showAllWorkouts() {
+  showScreen('screen-all-workouts');
+  const el = document.getElementById('all-workouts-list');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+  try {
+    const workouts = await api('getAllWorkouts');
+    if (!workouts.length) {
+      el.innerHTML = '<div class="empty-state">No workouts yet.</div>';
+      return;
+    }
+    el.innerHTML = workouts.map(w => workoutCardHTML(w, true)).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state">Could not load workouts.</div>';
+  }
+}
+
+function workoutCardHTML(w, expandable = false) {
+  const date = new Date(w.date);
+  const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const dur = formatDuration(w.duration_seconds);
+  const id = 'detail-' + w.workout_id;
+  const onclick = expandable ? `toggleWorkoutDetail('${w.workout_id}', '${id}')` : '';
+  return `
+    <div class="workout-card" onclick="${onclick}">
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="workout-date">${dateStr}</div>
+            <div class="workout-meta">${dur}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="workout-cal">${w.calories || '—'}</div>
+            <div class="workout-cal-label">cal${expandable ? ' <span class="expand-chevron" id="chev-' + w.workout_id + '">▼</span>' : ''}</div>
+          </div>
+        </div>
+        ${expandable ? `<div class="workout-detail" id="${id}"><div class="loading" style="padding:12px"><div class="spinner"></div></div></div>` : ''}
+      </div>
+    </div>`;
+}
+
+async function toggleWorkoutDetail(workoutId, detailId) {
+  const detail = document.getElementById(detailId);
+  const chev = document.getElementById('chev-' + workoutId);
+  const isOpen = detail.classList.contains('open');
+
+  if (isOpen) {
+    detail.classList.remove('open');
+    chev.classList.remove('open');
+    return;
+  }
+
+  detail.classList.add('open');
+  chev.classList.add('open');
+
+  // Load if not already loaded
+  if (detail.querySelector('.spinner')) {
+    try {
+      const logs = await api('getWorkoutLogs', { workout_id: workoutId });
+      detail.innerHTML = renderWorkoutDetail(logs);
+    } catch(e) {
+      detail.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Could not load details.</div>';
+    }
+  }
+}
+
+function renderWorkoutDetail(logs) {
+  if (!logs || !logs.length) return '<div style="color:var(--muted);font-size:13px;padding:8px 0">No activities logged.</div>';
+
+  // Group by activity
+  const grouped = {};
+  logs.forEach(r => {
+    if (!grouped[r.activity]) grouped[r.activity] = [];
+    grouped[r.activity].push(r);
+  });
+
+  return Object.entries(grouped).map(([name, rows]) => {
+    const isCardio = rows[0].time_seconds && rows[0].time_seconds > 0;
+    let detail = '';
+    if (isCardio) {
+      const t = rows[0].time_seconds ? formatDuration(parseInt(rows[0].time_seconds)) : null;
+      const d = rows[0].distance_miles && parseFloat(rows[0].distance_miles) > 0 ? parseFloat(rows[0].distance_miles).toFixed(2) + ' mi' : null;
+      const s = rows[0].stairs && parseInt(rows[0].stairs) > 0 ? parseInt(rows[0].stairs) + ' stairs' : null;
+      const parts = [t, d, s].filter(Boolean);
+      detail = `<div class="detail-row">${parts.map(p => `<span>${p}</span>`).join(' · ')}</div>`;
+    } else {
+      detail = rows.map((r, i) => `
+        <div class="detail-row">Set ${i+1}: <span>${r.reps} reps</span>${r.weight > 0 ? ` @ <span>${r.weight} lbs</span>` : ''}
+        </div>`).join('');
+    }
+    return `<div class="detail-activity"><div class="detail-activity-name">${name}</div>${detail}</div>`;
+  }).join('');
 }
 
 // ════════════════════════════════════════════════════════
