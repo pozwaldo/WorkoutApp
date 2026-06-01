@@ -632,14 +632,73 @@
     margin-left: 6px;
   }
   .expand-chevron.open { transform: rotate(180deg); }
+  .pc-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: transparent;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pc-dot.filled { background: var(--accent); border-color: var(--accent); }
+  .pc-dot.error { background: var(--red); border-color: var(--red); }
+  .pc-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    color: var(--text);
+    font-family: var(--font-head);
+    font-size: 26px;
+    font-weight: 700;
+    padding: 18px;
+    cursor: pointer;
+    transition: background 0.12s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pc-btn:active { background: var(--surface2); transform: scale(0.93); }
+  .pc-btn-del { font-size: 20px; color: var(--muted); }
 </style>
 </head>
 <body>
 
 <!-- ═══════════════════════════════════════════════════════
+     PASSCODE SCREEN
+═══════════════════════════════════════════════════════ -->
+<div id="screen-passcode" class="screen active" style="justify-content:center;align-items:center;min-height:100dvh">
+  <div style="width:100%;max-width:320px;padding:0 24px;text-align:center">
+    <div style="font-family:var(--font-head);font-size:38px;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Workout<span style="color:var(--accent)">.</span></div>
+    <div style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:36px">Enter Passcode</div>
+
+    <!-- Dots -->
+    <div style="display:flex;justify-content:center;gap:14px;margin-bottom:32px" id="passcode-dots">
+      <div class="pc-dot"></div><div class="pc-dot"></div><div class="pc-dot"></div>
+      <div class="pc-dot"></div><div class="pc-dot"></div><div class="pc-dot"></div>
+    </div>
+
+    <!-- Error -->
+    <div id="passcode-error" style="color:var(--red);font-size:13px;margin-bottom:16px;min-height:18px;letter-spacing:0.04em"></div>
+
+    <!-- Number pad -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <button class="pc-btn" onclick="pcInput('1')">1</button>
+      <button class="pc-btn" onclick="pcInput('2')">2</button>
+      <button class="pc-btn" onclick="pcInput('3')">3</button>
+      <button class="pc-btn" onclick="pcInput('4')">4</button>
+      <button class="pc-btn" onclick="pcInput('5')">5</button>
+      <button class="pc-btn" onclick="pcInput('6')">6</button>
+      <button class="pc-btn" onclick="pcInput('7')">7</button>
+      <button class="pc-btn" onclick="pcInput('8')">8</button>
+      <button class="pc-btn" onclick="pcInput('9')">9</button>
+      <div></div>
+      <button class="pc-btn" onclick="pcInput('0')">0</button>
+      <button class="pc-btn pc-btn-del" onclick="pcDelete()">⌫</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
      SCREEN 1: HOME
 ═══════════════════════════════════════════════════════ -->
-<div id="screen-home" class="screen active">
+<div id="screen-home" class="screen">
   <div class="topbar">
     <div class="topbar-title">Workout<span style="color:var(--accent)">.</span></div>
   </div>
@@ -794,6 +853,7 @@ let state = {
   previousActivities: [],   // names from last workout
   loggedThisWorkout: new Set(),
   sets: [],                 // current strength sets in progress
+  submitting: false,        // prevents double-tap logging
 };
 
 // ════════════════════════════════════════════════════════
@@ -1078,6 +1138,11 @@ function buildCardioForm(fields) {
 }
 
 async function logCardio() {
+  if (state.submitting) return;
+  state.submitting = true;
+  const btn = document.querySelector('.btn-log-cardio');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
   const timeMinEl = document.getElementById('cardio-time-min');
   const timeSecEl = document.getElementById('cardio-time-sec');
   const distEl = document.getElementById('cardio-distance');
@@ -1101,6 +1166,9 @@ async function logCardio() {
     showPicker();
   } catch(e) {
     showToast('Failed to log. Try again.', 'error');
+  } finally {
+    state.submitting = false;
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Log Activity'; }
   }
 }
 
@@ -1143,8 +1211,13 @@ function deleteSet(i) {
 }
 
 async function logSets() {
+  if (state.submitting) return;
   const validSets = state.sets.filter(s => s.reps !== '');
   if (!validSets.length) { showToast('Enter at least one set', 'error'); return; }
+
+  state.submitting = true;
+  const btn = document.querySelector('.btn-log-sets');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
 
   try {
     for (let i = 0; i < validSets.length; i++) {
@@ -1161,6 +1234,9 @@ async function logSets() {
     showPicker();
   } catch(e) {
     showToast('Failed to log. Try again.', 'error');
+  } finally {
+    state.submitting = false;
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Log All Sets'; }
   }
 }
 
@@ -1364,9 +1440,71 @@ function renderWorkoutDetail(logs) {
 }
 
 // ════════════════════════════════════════════════════════
+// PASSCODE
+// ════════════════════════════════════════════════════════
+let pcCode = '';
+let pcUnlocked = false;
+
+async function initApp() {
+  // Check if already unlocked this session
+  if (pcUnlocked) { loadHome(); return; }
+
+  // Fetch passcode from sheet
+  try {
+    const res = await api('getPasscode');
+    state._passcode = String(res.passcode).trim();
+  } catch(e) {
+    state._passcode = null;
+  }
+
+  // If no passcode set, skip straight to home
+  if (!state._passcode) { pcUnlocked = true; loadHome(); return; }
+
+  showScreen('screen-passcode');
+}
+
+function pcInput(digit) {
+  if (pcCode.length >= 6) return;
+  pcCode += digit;
+  updatePcDots();
+  if (pcCode.length === 6) pcSubmit();
+}
+
+function pcDelete() {
+  pcCode = pcCode.slice(0, -1);
+  updatePcDots();
+  document.getElementById('passcode-error').textContent = '';
+}
+
+function updatePcDots() {
+  const dots = document.querySelectorAll('.pc-dot');
+  dots.forEach((d, i) => {
+    d.classList.toggle('filled', i < pcCode.length);
+    d.classList.remove('error');
+  });
+}
+
+function pcSubmit() {
+  if (pcCode === state._passcode) {
+    pcUnlocked = true;
+    loadHome();
+  } else {
+    // Shake + show error
+    const dots = document.querySelectorAll('.pc-dot');
+    dots.forEach(d => d.classList.add('error'));
+    document.getElementById('passcode-error').textContent = 'Incorrect passcode';
+    setTimeout(() => {
+      pcCode = '';
+      updatePcDots();
+      document.getElementById('passcode-error').textContent = '';
+    }, 900);
+  }
+}
+
+// ════════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════════
-loadHome();
+initApp();
 </script>
 </body>
 </html>
