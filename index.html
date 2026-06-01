@@ -755,12 +755,20 @@
       <span></span><span></span><span></span>
     </button>
   </div>
+
+  <!-- Activity name + Log button side by side for strength -->
   <div class="workout-activity-header">
-    <div class="workout-activity-name" id="log-activity-name"></div>
-    <div class="workout-activity-type" id="log-activity-type"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="flex:1;min-width:0">
+        <div class="workout-activity-name" id="log-activity-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <div class="workout-activity-type" id="log-activity-type"></div>
+      </div>
+      <button class="btn-log-sets" id="btn-log-sets-top" onclick="logSets()" style="display:none;flex-shrink:0;width:48%;margin:0;padding:12px 8px;font-size:15px">✓ Log Sets</button>
+    </div>
   </div>
 
-  <div class="stats-bar" id="stats-bar"></div>
+  <!-- Last session stats for cardio only -->
+  <div class="stats-bar" id="stats-bar" style="display:none"></div>
 
   <!-- Cardio form -->
   <div id="cardio-form" style="display:none">
@@ -775,7 +783,12 @@
     </div>
     <div class="sets-list" id="sets-list"></div>
     <button class="btn-add-set" onclick="addSet()">+ Add Set</button>
-    <button class="btn-log-sets" onclick="logSets()">✓ Log All Sets</button>
+
+    <!-- Last session reference -->
+    <div id="last-session-block" style="margin:16px 16px 0">
+      <div class="section-label" style="padding:0 0 8px">Last Session</div>
+      <div id="last-session-sets"></div>
+    </div>
   </div>
 </div>
 
@@ -1032,6 +1045,9 @@ async function selectActivity(name) {
   // Show the right form
   document.getElementById('cardio-form').style.display = activity.type === 'cardio' ? 'block' : 'none';
   document.getElementById('strength-form').style.display = activity.type === 'strength' ? 'block' : 'none';
+  // Reset last-session block while loading
+  const lb = document.getElementById('last-session-block');
+  if (lb) lb.style.display = 'none';
 
   if (activity.type === 'cardio') {
     buildCardioForm(activity.fields || ['time']);
@@ -1047,59 +1063,65 @@ async function selectActivity(name) {
 // ════════════════════════════════════════════════════════
 async function loadActivityStats(name, type) {
   const bar = document.getElementById('stats-bar');
-  bar.innerHTML = '<div class="loading" style="grid-column:1/-1;padding:20px"><div class="spinner"></div></div>';
-  try {
-    const data = await api('getActivityStats', { activity: name });
+  const lastBlock = document.getElementById('last-session-block');
+  const lastSetsEl = document.getElementById('last-session-sets');
+  const logBtn = document.getElementById('btn-log-sets-top');
 
-    if (!data.lastWorkout && !data.average) {
-      bar.innerHTML = `
-        <div class="stat-card"><div class="stat-label">Last Time</div><div class="stat-value" style="color:var(--muted)">No data</div></div>
-        <div class="stat-card"><div class="stat-label">All-Time Avg</div><div class="stat-value" style="color:var(--muted)">No data</div></div>`;
-      return;
+  if (type === 'strength') {
+    // Show the top log button, hide stats bar
+    if (logBtn) logBtn.style.display = 'block';
+    bar.style.display = 'none';
+
+    // Show last session sets below add button
+    if (lastBlock) lastBlock.style.display = 'block';
+    if (lastSetsEl) lastSetsEl.innerHTML = '<div class="loading" style="padding:8px 0"><div class="spinner"></div></div>';
+
+    try {
+      const data = await api('getActivityStats', { activity: name });
+      if (!data.lastWorkout || !data.lastWorkout.length) {
+        if (lastBlock) lastBlock.style.display = 'none';
+        return;
+      }
+      if (lastSetsEl) {
+        lastSetsEl.innerHTML = data.lastWorkout.map((r, i) => `
+          <div style="display:grid;grid-template-columns:36px 1fr 1fr;gap:8px;margin-bottom:8px;align-items:center">
+            <div style="background:var(--surface2);border-radius:8px;text-align:center;padding:10px 0;font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--muted)">${i+1}</div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--muted)">${r.reps}</div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--muted)">${parseFloat(r.weight) > 0 ? r.weight : '—'}</div>
+          </div>`).join('');
+      }
+    } catch(e) {
+      if (lastBlock) lastBlock.style.display = 'none';
     }
 
-    if (type === 'strength') {
-      const lastSets = data.lastWorkout ? data.lastWorkout.length : 0;
-      const lastReps = data.lastWorkout ? data.lastWorkout.map(r => r.reps).join(', ') : '—';
-      const lastWt = data.lastWorkout ? data.lastWorkout[0]?.weight || '—' : '—';
-      const avgReps = data.average?.reps ? data.average.reps.toFixed(1) : '—';
-      const avgWt = data.average?.weight ? data.average.weight.toFixed(1) : '—';
+  } else {
+    // Cardio: show single last-time stat bar, hide log button + last sets
+    if (logBtn) logBtn.style.display = 'none';
+    if (lastBlock) lastBlock.style.display = 'none';
+    bar.style.display = 'grid';
+    bar.innerHTML = '<div class="loading" style="grid-column:1/-1;padding:20px"><div class="spinner"></div></div>';
+
+    try {
+      const data = await api('getActivityStats', { activity: name });
+      if (!data.lastWorkout || !data.lastWorkout.length) {
+        bar.style.display = 'none';
+        return;
+      }
+      const r = data.lastWorkout[0];
+      const lastTime = r.time_seconds ? formatDuration(parseInt(r.time_seconds)) : null;
+      const lastDist = r.distance_miles && parseFloat(r.distance_miles) > 0 ? parseFloat(r.distance_miles).toFixed(2) + ' mi' : null;
+      const lastStairs = r.stairs && parseInt(r.stairs) > 0 ? parseInt(r.stairs) + ' stairs' : null;
+      const parts = [lastTime, lastDist, lastStairs].filter(Boolean);
+      bar.style.gridTemplateColumns = '1fr';
       bar.innerHTML = `
         <div class="stat-card">
-          <div class="stat-label">Last Time</div>
-          <div class="stat-value">${lastSets} sets</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">${lastReps} reps @ ${lastWt} lbs</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">All-Time Avg</div>
-          <div class="stat-value green">${avgReps} reps</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">${avgWt} lbs avg</div>
+          <div class="stat-label">Last Session</div>
+          <div class="stat-value">${parts[0] || '—'}</div>
+          ${parts.slice(1).map(p => `<div style="font-size:12px;color:var(--muted);margin-top:2px">${p}</div>`).join('')}
         </div>`;
-    } else {
-      const lastTime = data.lastWorkout?.[0]?.time_seconds ? formatDuration(data.lastWorkout[0].time_seconds) : '—';
-      const lastDist = data.lastWorkout?.[0]?.distance_miles ? data.lastWorkout[0].distance_miles.toFixed(2) + ' mi' : null;
-      const lastStairs = data.lastWorkout?.[0]?.stairs ? data.lastWorkout[0].stairs + ' stairs' : null;
-      const lastDetail = lastDist || lastStairs || '';
-
-      const avgTime = data.average?.time_seconds ? formatDuration(Math.round(data.average.time_seconds)) : '—';
-      const avgDist = data.average?.distance_miles ? data.average.distance_miles.toFixed(2) + ' mi' : null;
-      const avgStairs = data.average?.stairs ? Math.round(data.average.stairs) + ' stairs' : null;
-      const avgDetail = avgDist || avgStairs || '';
-
-      bar.innerHTML = `
-        <div class="stat-card">
-          <div class="stat-label">Last Time</div>
-          <div class="stat-value">${lastTime}</div>
-          ${lastDetail ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${lastDetail}</div>` : ''}
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">All-Time Avg</div>
-          <div class="stat-value green">${avgTime}</div>
-          ${avgDetail ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${avgDetail}</div>` : ''}
-        </div>`;
+    } catch(e) {
+      bar.style.display = 'none';
     }
-  } catch(e) {
-    bar.innerHTML = '<div class="stat-card" style="grid-column:1/-1"><div class="stat-label">Stats unavailable</div></div>';
   }
 }
 
@@ -1216,7 +1238,7 @@ async function logSets() {
   if (!validSets.length) { showToast('Enter at least one set', 'error'); return; }
 
   state.submitting = true;
-  const btn = document.querySelector('.btn-log-sets');
+  const btn = document.getElementById('btn-log-sets-top');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
 
   try {
@@ -1236,7 +1258,7 @@ async function logSets() {
     showToast('Failed to log. Try again.', 'error');
   } finally {
     state.submitting = false;
-    if (btn) { btn.disabled = false; btn.textContent = '✓ Log All Sets'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Log Sets'; }
   }
 }
 
