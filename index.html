@@ -909,22 +909,7 @@ async function loadHome() {
       el.innerHTML = '<div class="empty-state">No workouts yet.<br>Time to get moving!</div>';
       return;
     }
-    el.innerHTML = workouts.map(w => {
-      const date = new Date(w.date);
-      const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-      const dur = formatDuration(w.duration_seconds);
-      return `
-        <div class="workout-card">
-          <div>
-            <div class="workout-date">${dateStr}</div>
-            <div class="workout-meta">${dur}</div>
-          </div>
-          <div>
-            <div class="workout-cal">${w.calories || '—'}</div>
-            <div class="workout-cal-label">cal</div>
-          </div>
-        </div>`;
-    }).join('');
+    el.innerHTML = workouts.map(w => workoutCardHTML(w, true)).join('');
   } catch(e) {
     el.innerHTML = '<div class="empty-state">Couldn\'t load workouts.<br>Check your connection.</div>';
   }
@@ -987,30 +972,42 @@ function formatDuration(secs) {
 // ════════════════════════════════════════════════════════
 // ACTIVITY PICKER
 // ════════════════════════════════════════════════════════
-function buildActivityGrid() {
+async function buildActivityGrid() {
   const grid = document.getElementById('activity-grid');
+  grid.innerHTML = '<div class="loading" style="padding:32px"><div class="spinner"></div></div>';
+
+  // Fetch last-done dates for all activities
+  let lastDone = {};
+  try {
+    lastDone = await api('getLastDoneDates');
+  } catch(e) { /* non-fatal, just show without dates */ }
+
   const cardio = ACTIVITIES.filter(a => a.type === 'cardio');
   const strength = ACTIVITIES.filter(a => a.type === 'strength');
 
   let html = '<div class="section-label" style="padding-top:12px">Cardio</div>';
-  html += cardio.map(a => activityItemHTML(a)).join('');
+  html += cardio.map(a => activityItemHTML(a, lastDone[a.name])).join('');
   html += '<div class="section-label" style="padding-top:8px">Strength</div>';
-  html += strength.map(a => activityItemHTML(a)).join('');
+  html += strength.map(a => activityItemHTML(a, lastDone[a.name])).join('');
   grid.innerHTML = html;
 }
 
-function activityItemHTML(a) {
+function activityItemHTML(a, lastDate) {
   const prevDot = state.previousActivities.includes(a.name);
   const logged = state.loggedThisWorkout.has(a.name);
   const typeLabel = a.type === 'cardio'
     ? (a.fields || []).map(f => f === 'time' ? 'Time' : f === 'distance' ? 'Distance (mi)' : 'Stairs').join(' · ')
     : 'Sets · Reps · Weight';
+  const lastStr = lastDate
+    ? new Date(lastDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null;
 
   return `
     <div class="activity-item ${logged ? 'done' : ''}" onclick="selectActivity('${a.name}')">
       <div>
         <div class="activity-name">${a.name}</div>
         <div class="activity-type">${typeLabel}</div>
+        ${lastStr ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:0.04em">Last done ${lastStr}</div>` : ''}
         ${logged ? '<span class="logged-badge">✓ Logged</span>' : ''}
       </div>
       <div class="activity-dot ${prevDot ? '' : 'hidden'}"></div>
@@ -1424,10 +1421,28 @@ async function toggleWorkoutDetail(workoutId, detailId) {
   if (detail.querySelector('.spinner')) {
     try {
       const logs = await api('getWorkoutLogs', { workout_id: workoutId });
-      detail.innerHTML = renderWorkoutDetail(logs);
+      detail.innerHTML = renderWorkoutDetail(logs) +
+        `<button onclick="confirmDeleteWorkout('${workoutId}')" style="margin-top:14px;width:100%;padding:11px;background:none;border:1px solid var(--red);border-radius:10px;color:var(--red);font-family:var(--font-head);font-size:15px;font-weight:700;letter-spacing:0.04em;cursor:pointer;">🗑 Delete Workout</button>`;
     } catch(e) {
       detail.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Could not load details.</div>';
     }
+  }
+}
+
+async function confirmDeleteWorkout(workoutId) {
+  if (!confirm('Delete this workout? This cannot be undone.')) return;
+  try {
+    await api('discardWorkout', { workout_id: workoutId });
+    showToast('Workout deleted', 'success');
+    // Refresh whichever list is currently showing
+    const allScreen = document.getElementById('screen-all-workouts');
+    if (allScreen && allScreen.classList.contains('active')) {
+      showAllWorkouts();
+    } else {
+      loadHome();
+    }
+  } catch(e) {
+    showToast('Could not delete. Try again.', 'error');
   }
 }
 
